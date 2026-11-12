@@ -13,14 +13,7 @@ from .const import DOMAIN  # const has no HA dependency
 
 PLATFORMS = ["sensor"]
 
-# Configured only through the UI, but hassfest requires the symbol to exist.
-# Guarded so the package stays importable without Home Assistant (offline tests).
-try:
-    from homeassistant.helpers import config_validation as cv
-except ImportError:  # pragma: no cover - only without Home Assistant installed
-    CONFIG_SCHEMA = None
-else:
-    CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+_WEBHOOK_REGISTERED = f"{DOMAIN}_webhook_registered"
 
 
 class _PrivateRotatingHandler(RotatingFileHandler):
@@ -36,12 +29,6 @@ class _PrivateRotatingHandler(RotatingFileHandler):
         return os.fdopen(fd, self.mode, encoding=self.encoding, errors=self.errors)
 
 
-async def async_setup(hass, config) -> bool:
-    from .webhook import async_setup as async_setup_webhook
-
-    return async_setup_webhook(hass)
-
-
 async def async_setup_entry(hass, entry) -> bool:
     import os
     from contextlib import suppress
@@ -52,6 +39,15 @@ async def async_setup_entry(hass, entry) -> bool:
     from .cloud import RemotCloudClient
     from .const import CONF_CLOUD_TOKENS, CONF_PROTOCOL_PEM, CONF_TARGET_NAME, DOMAIN
     from .coordinator import BmcE6Coordinator
+
+    # One webhook shared by every entry, registered on first setup. Keeping it out
+    # of async_setup means the component has no YAML setup and no global side
+    # effect when no entry is configured.
+    if not hass.data.get(_WEBHOOK_REGISTERED):
+        from .webhook import async_setup as async_setup_webhook
+
+        async_setup_webhook(hass)
+        hass.data[_WEBHOOK_REGISTERED] = True
 
     target_name = entry.data[CONF_TARGET_NAME]
     # Persist the user-supplied PEM to a 0600 file inside HA's config dir.
