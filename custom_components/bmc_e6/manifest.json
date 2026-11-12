@@ -1,22 +1,6 @@
 {
   "domain": "bmc_e6",
   "name": "BMC E5/E6 Ventilator",
-  "version": "0.1.0",
-  "documentation": "https://github.com/HerbertGao/bmc-e6-ha",
-  "issue_tracker": "https://github.com/HerbertGao/bmc-e6-ha/issues",
-  "codeowners": [
-    "@HerbertGao"
-  ],
-  "config_flow": true,
-  "dependencies": [
-    "bluetooth"
-  ],
-  "requirements": [
-    "bleak>=0.22",
-    "cryptography"
-  ],
-  "iot_class": "local_polling",
-  "integration_type": "device",
   "bluetooth": [
     {
       "local_name": "BMC_E5*"
@@ -24,5 +8,20 @@
     {
       "local_name": "BMC_E6*"
     }
-  ]
+  ],
+  "categories": [
+    "health_wellbeing"
+  ],
+  "codeowners": [
+    "@HerbertGao"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth"
+  ],
+  "documentation": "https://github.com/HerbertGao/bmc-e6-ha",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/HerbertGao/bmc-e6-ha/issues",
+  "version": "0.1.0"
 }

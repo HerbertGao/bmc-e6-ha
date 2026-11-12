@@ -29,7 +29,7 @@
       }
     },
     "error": {
-      "invalid_name": "应为 BMC_E5<序列号> 或 BMC_E6<序列号>。",
+      "invalid_name": "应为形如 BMC_E5xxxx 或 BMC_E6xxxx 的名称。",
       "invalid_pem": "不是 Base64 编码的 RSA-1024 PKCS#1 私钥。请按 tools/README.md 从你自己的 App 中提取。",
       "cloud_incomplete": "五个云端字段要么全填，要么全留空。"
     },

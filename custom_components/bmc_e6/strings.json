@@ -29,7 +29,7 @@
       }
     },
     "error": {
-      "invalid_name": "Expected BMC_E5<serial> or BMC_E6<serial>.",
+      "invalid_name": "Expected a name like BMC_E5xxxxxxxx or BMC_E6xxxxxxxx.",
       "invalid_pem": "Not a Base64-encoded RSA-1024 PKCS#1 private key. See tools/README.md to extract it from your own app.",
       "cloud_incomplete": "Fill all five cloud fields, or leave them all empty."
     },

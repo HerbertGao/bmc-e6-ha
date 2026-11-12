@@ -13,6 +13,15 @@ from .const import DOMAIN  # const has no HA dependency
 
 PLATFORMS = ["sensor"]
 
+# Configured only through the UI, but hassfest requires the symbol to exist.
+# Guarded so the package stays importable without Home Assistant (offline tests).
+try:
+    from homeassistant.helpers import config_validation as cv
+except ImportError:  # pragma: no cover - only without Home Assistant installed
+    CONFIG_SCHEMA = None
+else:
+    CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 class _PrivateRotatingHandler(RotatingFileHandler):
     """Rotating handler that keeps the log 0600, including after a rollover.
