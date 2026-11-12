@@ -1,0 +1,71 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "BMC 呼吸机",
+        "description": "填写设备广播名称。",
+        "data": {
+          "target_name": "广播设备名"
+        }
+      },
+      "credentials": {
+        "title": "协议密钥",
+        "description": "粘贴你从自己 App 中提取的 Base64 单行 PKCS#1 PEM。",
+        "data": {
+          "protocol_pem": "协议密钥（Base64 PEM）"
+        }
+      },
+      "cloud": {
+        "title": "云端备份与推送（全部可选）",
+        "description": "云端需填全五项。填写推送密钥才会启用 mini agent webhook。",
+        "data": {
+          "access_token": "Access token",
+          "refresh_token": "Refresh token",
+          "serial": "云端序列号",
+          "terminal_id": "终端 ID",
+          "base_url": "云端地址",
+          "push_secret": "推送密钥"
+        }
+      }
+    },
+    "error": {
+      "invalid_name": "应为 BMC_E5<序列号> 或 BMC_E6<序列号>。",
+      "invalid_pem": "不是 Base64 编码的 RSA-1024 PKCS#1 私钥。请按 tools/README.md 从你自己的 App 中提取。",
+      "cloud_incomplete": "五个云端字段要么全填，要么全留空。"
+    },
+    "abort": {
+      "not_supported": "该设备不是受支持的 BMC E5/E6 呼吸机。"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "ahi": {
+        "name": "AHI 呼吸暂停低通气指数"
+      },
+      "treat_time_h": {
+        "name": "治疗时长"
+      },
+      "leak_avg": {
+        "name": "平均漏气量"
+      },
+      "epap_avg": {
+        "name": "平均呼气压力 EPAP"
+      },
+      "ipap_avg": {
+        "name": "平均吸气压力 IPAP"
+      },
+      "vt_avg": {
+        "name": "平均潮气量"
+      },
+      "mv_avg": {
+        "name": "平均分钟通气量"
+      },
+      "rr_avg": {
+        "name": "平均呼吸频率"
+      },
+      "cloud_score": {
+        "name": "云端夜间评分"
+      }
+    }
+  }
+}

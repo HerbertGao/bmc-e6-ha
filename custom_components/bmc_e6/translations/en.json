@@ -1,0 +1,71 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "BMC ventilator",
+        "description": "Enter the advertised name.",
+        "data": {
+          "target_name": "Advertised device name"
+        }
+      },
+      "credentials": {
+        "title": "Protocol key",
+        "description": "Paste the Base64-encoded PKCS#1 PEM extracted from your own app.",
+        "data": {
+          "protocol_pem": "Protocol key (Base64 PEM)"
+        }
+      },
+      "cloud": {
+        "title": "Cloud backup and push (all optional)",
+        "description": "Cloud needs all five fields. A push secret enables the mini-agent webhook.",
+        "data": {
+          "access_token": "Access token",
+          "refresh_token": "Refresh token",
+          "serial": "Cloud serial",
+          "terminal_id": "Terminal id",
+          "base_url": "Cloud base URL",
+          "push_secret": "Push secret"
+        }
+      }
+    },
+    "error": {
+      "invalid_name": "Expected BMC_E5<serial> or BMC_E6<serial>.",
+      "invalid_pem": "Not a Base64-encoded RSA-1024 PKCS#1 private key. See tools/README.md to extract it from your own app.",
+      "cloud_incomplete": "Fill all five cloud fields, or leave them all empty."
+    },
+    "abort": {
+      "not_supported": "This device is not a supported BMC E5/E6 ventilator."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "ahi": {
+        "name": "AHI (apnea-hypopnea index, events per hour)"
+      },
+      "treat_time_h": {
+        "name": "Therapy duration"
+      },
+      "leak_avg": {
+        "name": "Average mask leak"
+      },
+      "epap_avg": {
+        "name": "Average expiratory pressure (EPAP)"
+      },
+      "ipap_avg": {
+        "name": "Average inspiratory pressure (IPAP)"
+      },
+      "vt_avg": {
+        "name": "Average tidal volume"
+      },
+      "mv_avg": {
+        "name": "Average minute ventilation"
+      },
+      "rr_avg": {
+        "name": "Average breathing rate"
+      },
+      "cloud_score": {
+        "name": "Cloud nightly score"
+      }
+    }
+  }
+}

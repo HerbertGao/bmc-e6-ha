@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Never commit secrets or device/user data:
+*.pem
+config.json
+secrets/
+archive/
+mini-cursor.json
+latest.json
+.DS_Store
+# Client evidence artifacts (contain device names/MACs) and logs:
+scan-download-*.json
+report-download-*.json
+*.log
