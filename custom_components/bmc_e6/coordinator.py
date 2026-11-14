@@ -112,10 +112,15 @@ class BmcE6Coordinator(DataUpdateCoordinator):
 
     async def _async_ble_channel(self) -> None:
         """One bounded BLE round; continue sooner while older records remain."""
-        ok = await self._async_ble_round()
-        if not ok:
+        code = await self._async_ble_round()
+        if code != 0:
+            # Retry once for any unsuccessful round, not just an unauthenticated
+            # one: right after start the proxies are not registered yet, so the
+            # first attempt can authenticate over the weak local adapter and then
+            # die mid-session ("heartbeat write failed") without fetching anything.
             await asyncio.sleep(PROXY_SETTLE_S)
-            ok = await self._async_ble_round()
+            code = await self._async_ble_round()
+        ok = code == 0
         # Advancing the cursor means more history is waiting. Any failure falls
         # back to the hourly rate so a broken link cannot spin.
         backfill = ok and self._ble_advanced
@@ -124,8 +129,8 @@ class BmcE6Coordinator(DataUpdateCoordinator):
             _LOGGER.info("BLE backfill: next round in %ss (cursor=%s)",
                          BACKFILL_INTERVAL.seconds, self._cursor)
 
-    async def _async_ble_round(self) -> bool:
-        """One bounded BLE download round. True once the session authenticated."""
+    async def _async_ble_round(self) -> int:
+        """One bounded BLE download round. Returns the client exit code (0 = ok)."""
         before_cursor = self._cursor
         self._ble_advanced = False
         _LOGGER.info("BLE download start: cursor=%s device=%s", self._cursor,
@@ -164,7 +169,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
                 _LOGGER.info("BLE download done: %d new summaries, %d total, next_cursor=%s stop=%s counts=%s rssi=%s",
                              added, len(result["summaries"]), result["next_cursor"], report.get("stop_reason"),
                              report.get("counts"), report.get("rssi"))
-                return True
+                return result["code"]
             connect = report.get("connect") or {}
             _LOGGER.warning("BLE download failed: %s (rssi=%s discovered=%s connect_ok=%s error=%s) auth=%s",
                             report.get("stop_reason"), report.get("rssi"),
@@ -172,7 +177,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
                             report.get("auth"))
         except Exception as ex:  # BLE failure must not block the cloud channel
             _LOGGER.warning("BLE download error: %s: %s", type(ex).__name__, ex)
-        return False
+        return 1
 
     async def async_persist_state(self) -> None:
         if self._store is None:
