@@ -100,10 +100,26 @@ class BmcE6MetricSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{entry_id}_{key}"
         self._attr_device_info = _device_info(entry_id, coordinator)
 
+    def _records(self) -> dict:
+        return (self.coordinator.data or {}).get("records") or {}
+
+    def _newest_record(self) -> dict:
+        records = self._records()
+        return records[max(records)] if records else {}
+
     def _latest_record(self) -> dict:
-        records = (self.coordinator.data or {}).get("records") or {}
-        latest = (self.coordinator.data or {}).get("latest")
-        return records.get(latest) or {}
+        """Newest record that actually holds therapy, else the newest record.
+
+        The device creates an empty record for the next day at its day boundary
+        (recordDate carries a fixed 12:00), so reading max(recordNo) blindly makes
+        every metric drop to 0 until that day has data — indistinguishable from a
+        real 0-AHI night, and also the same for a night the machine was unused.
+        """
+        records = self._records()
+        if not records:
+            return {}
+        with_data = [no for no, rec in records.items() if (rec.get("treatTime") or 0) > 0]
+        return records[max(with_data) if with_data else max(records)]
 
     @property
     def native_value(self):
@@ -114,11 +130,17 @@ class BmcE6MetricSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         rec = self._latest_record()
+        newest = self._newest_record()
         record_date = rec.get("recordDate")
+        newest_date = newest.get("recordDate")
         return {
             # The device stores a date; the 12:00 time is an encoding artifact.
+            # record_* describes the record the value comes from; newest_record_*
+            # exposes the device's latest record even when it is still empty.
             "record_date": str(record_date)[:10] if record_date else None,
             "record_no": rec.get("recordNo"),
             "source": rec.get("source"),
             "treat_count": rec.get("treatCnt"),
+            "newest_record_no": newest.get("recordNo"),
+            "newest_record_date": str(newest_date)[:10] if newest_date else None,
         }

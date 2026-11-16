@@ -7,7 +7,7 @@
 ```
 
 - 数据按 `recordNo` 去重合并，实体属性带 `source`（ble/cloud/mini_ble）与抓取时间。
-- 摘要 JSON 存档仅本机（0600）；HA 实体展示最新一条记录，**没有**多天聚合。
+- 摘要 JSON 存档仅本机（0600）；HA 实体展示**最近一条有治疗数据的记录**，**没有**多天聚合。
 - 只读：所有写入仅限白名单（9820 state=1、官方 ACK、官方 cursor）。
 - **不按治疗时段做门控**：集成每小时一轮，每轮一次有界连接（≤​60s）。设备只在请求时下发记录，
   客户端全程不写治疗/系统/时钟。
@@ -26,7 +26,9 @@
 | `sensor.bmc_rr_avg` | 平均呼吸频率 | breaths/min |
 | `sensor.bmc_cloud_score` | 云端夜间评分 | — |
 
-BLE 实体显示的是**最新一条**记录（`record_no` / `record_date` 属性可核对），所以当天未治疗时值会是 0。
+BLE 实体显示的是**最近一条有治疗数据的记录**。设备会提前建立下一天的空记录，取最新记录会让所有指标
+显示 0，因此空记录被跳过。`record_no` / `record_date` 标明数值来源，`newest_record_no` /
+`newest_record_date` 标明设备最新记录（可能为空）；判断日期请读属性，不要假设是当天。
 名称走 HA 的 entity 翻译（`translations/en.json`、`zh-Hans.json`）。上表的 `sensor.bmc_*` 是**早期安装**的 ID；
 新安装由 HA 按设备名 + 翻译名生成，不保证同样的 ID。
 设备的 `hw_version` / `sw_version` 来自 GATT `0x180A` 实读（缺少时自动读一次，不硬编码）

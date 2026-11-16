@@ -56,8 +56,15 @@ E6 已实机验证（B25A Plus）；E5 协议同源，未在任何 E5 机器上�
 | `sensor.bmc_rr_avg` | 平均呼吸频率 | breaths/min |
 | `sensor.bmc_cloud_score` | 云端夜间评分（属性带报告标题与摘要） | — |
 
-BLE 实体展示**最新一条**记录，属性 `record_no`/`record_date`/`source` 可用于核对来源与日期。
-当天还没生成记录时显示 0，这是设备真实值，不是解析错误。
+BLE 实体展示**最近一条有治疗数据的记录**。设备会在日期边界提前建立下一天的记录且内容为空
+（`recordDate` 固定带 `T12:00:00`，是编码产物而非真实时间）；若直接取最新记录，所有指标会显示 0，
+与"AHI 为 0"无法区分，所以取值时会跳过这类空记录。
+
+属性区分得很清楚，判断日期必须读它们，不要假设是当天：
+
+- `record_no` / `record_date`：数值**来自**哪条记录
+- `newest_record_no` / `newest_record_date`：设备当前的**最新**记录，可能仍为空
+- `source`：`ble` / `cloud` / `mini_ble`
 
 ## 安装
 
