@@ -7,6 +7,7 @@ CONF_TARGET_NAME = "target_name"  # advertisement name: BMC_<serial number>
 CONF_PROTOCOL_PEM = "protocol_pem"  # user-supplied PKCS#1 PEM (from own APK)
 CONF_CLOUD_TOKENS = "cloud_tokens"  # optional cloud backup credentials
 CONF_PUSH_SECRET = "push_secret"  # optional bearer token for the mini-agent push webhook
+CONF_PHONE = "phone"  # login phone number, used only inside the options flow  # optional bearer token for the mini-agent push webhook
 
 NAME_PREFIX = "BMC_"
 FE60_UUID_16 = "fe60"

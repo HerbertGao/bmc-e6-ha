@@ -31,6 +31,60 @@ def api_headers(sec: dict, *, auth: bool = True) -> dict:
     return h
 
 
+def login_headers(sec: dict | None = None) -> dict:
+    """Headers for the login endpoints (no Authorization: there is no token yet)."""
+    sec = sec or {}
+    return {
+        "terminal-version": sec.get("terminal_version", "1.01.02"),
+        "terminal": sec.get("terminal", "app_ios"),
+        "User-Agent": USER_AGENT,
+        "Accept": "*/*",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+
+
+async def send_login_sms(session, base_url: str, phone: str, sec: dict | None = None) -> None:
+    """Ask the cloud to text a login code. Only ever called from the options flow.
+
+    The vendor bills real SMS for this, so it stays user-initiated: no automatic
+    re-login, no retries. Phone and code are never logged.
+    """
+    url = f"{base_url}/api1/authentication/sms/send?mobile={phone}"
+    async with session.get(url, headers=login_headers(sec)) as resp:
+        if resp.status != 200:
+            raise RuntimeError(f"sms send HTTP {resp.status}")
+        body = await resp.json(content_type=None)
+    # This endpoint reports success=true even when it refuses, so trust only code.
+    if body.get("code") not in (0, None) or not body.get("success"):
+        raise RuntimeError(f"sms send refused: code={body.get('code')}")
+
+
+async def login_with_sms_code(session, base_url: str, phone: str, code: str,
+                             terminal_id: str, sec: dict | None = None) -> dict:
+    """Exchange an SMS code for a token pair owned by this integration.
+
+    Logging in separately (instead of reusing the app's tokens) avoids the
+    refresh-token rotation race: whoever refreshes first invalidates the other copy.
+    """
+    payload = urlencode({
+        "grant_type": "mobile_code",
+        "phone": phone,
+        "terminal-id": terminal_id,
+        "code": code,
+    }).encode()
+    async with session.post(f"{base_url}/api1/oauth2/token",
+                            data=payload, headers=login_headers(sec)) as resp:
+        if resp.status != 200:
+            raise RuntimeError(f"login HTTP {resp.status}")
+        body = await resp.json(content_type=None)
+    data = body.get("data") or {}
+    if body.get("code") not in (0, None) or not data.get("accessToken") or not data.get("refreshToken"):
+        # code 1100 = wrong/expired SMS code. success is true here even so.
+        raise RuntimeError(f"login refused: code={body.get('code')} msg={body.get('msg')}")
+    return data
+    return data
+
+
 def metrics_from_day(body: dict) -> dict | None:
     """Map a /api2/ventilator/report/day response to flat metrics (None if empty)."""
     if not body.get("success"):

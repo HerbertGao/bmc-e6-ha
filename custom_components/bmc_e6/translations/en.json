@@ -67,5 +67,37 @@
         "name": "Cloud nightly score"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cloud re-authentication",
+        "description": "Sends one SMS with a login code. The integration keeps its own session, separate from the app.",
+        "data": {
+          "phone": "Phone number"
+        }
+      },
+      "code": {
+        "title": "Enter the SMS code",
+        "description": "Enter the code that was just texted to you.",
+        "data": {
+          "code": "SMS code"
+        }
+      }
+    },
+    "error": {
+      "invalid_phone": "Digits only, 6-15 characters.",
+      "sms_failed": "The cloud refused to send an SMS. Try again later.",
+      "code_failed": "That code was rejected or expired."
+    },
+    "abort": {
+      "cloud_not_configured": "Configure the cloud backup first (access token, serial, base URL)."
+    }
+  },
+  "issues": {
+    "cloud_auth": {
+      "title": "Cloud re-authentication needed",
+      "description": "The Remot cloud rejected the stored tokens, so the score channel is paused. Open the integration's options and run the SMS login to get a new token pair."
+    }
   }
 }

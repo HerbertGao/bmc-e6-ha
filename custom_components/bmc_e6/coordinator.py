@@ -30,6 +30,36 @@ BACKFILL_INTERVAL = timedelta(seconds=20)
 BLE_INTERVAL = timedelta(hours=1)
 
 
+CLOUD_AUTH_ISSUE = "cloud_auth"
+
+
+def _is_auth_error(cloud_error: str) -> bool:
+    """True for the failures that mean "our tokens are dead", not "cloud is down"."""
+    return (
+        "CloudAuthError" in cloud_error
+        or "refresh HTTP 401" in cloud_error
+        or "refresh HTTP 403" in cloud_error
+        or "refresh HTTP 500" in cloud_error   # vendor reports a stale token as 500
+        or "-401" in cloud_error
+    )
+
+
+def _cloud_issue(hass, target_name: str, *, create: bool) -> None:
+    from homeassistant.helpers import issue_registry as ir
+
+    issue_id = f"{CLOUD_AUTH_ISSUE}_{target_name}"
+    if create:
+        ir.async_create_issue(
+            hass, DOMAIN, issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=CLOUD_AUTH_ISSUE,
+            translation_placeholders={"name": target_name},
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+
+
 class BmcE6Coordinator(DataUpdateCoordinator):
     """Owns the daily incremental download and merges all three data sources.
 
@@ -92,9 +122,15 @@ class BmcE6Coordinator(DataUpdateCoordinator):
             try:
                 await self._cloud.ensure_auth()
                 cloud_metrics = await self._cloud.pick_report()
+                _cloud_issue(self.hass, self.target_name, create=False)
             except Exception as ex:  # cloud is a backup channel; never block BLE
                 cloud_error = f"{type(ex).__name__}: {ex}"
                 _LOGGER.warning("Remot cloud fetch failed: %s", cloud_error)
+                if _is_auth_error(cloud_error):
+                    # A stale refresh token shows up as a bare HTTP 500 from the
+                    # vendor, which reads like an outage. Tell the user it needs
+                    # re-authentication instead of leaving it in the log.
+                    _cloud_issue(self.hass, self.target_name, create=True)
                 if not self._ble_enabled and self.data is None:
                     # Only a truly cloud-only FIRST refresh fails hard; later
                     # failures keep old data plus cloud_error (never fake success).

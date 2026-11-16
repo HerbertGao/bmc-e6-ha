@@ -7,10 +7,13 @@ import re
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
+from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 
 from .const import (
     CONF_CLOUD_TOKENS,
+    CONF_PHONE,
     CONF_PROTOCOL_PEM,
     CONF_PUSH_SECRET,
     CONF_TARGET_NAME,
@@ -19,6 +22,7 @@ from .const import (
 )
 from .bmc_ble import auth_frames as af
 from .bmc_ble.client import is_supported_advertisement, model_from_name
+from .cloud import login_with_sms_code, send_login_sms
 
 # The name reaches filesystem paths and store keys, so keep it to what a serial can
 # actually be: a crafted advertisement must not be able to break setup.
@@ -33,6 +37,11 @@ class BmcE6ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Discovery picks the ventilator; user supplies the protocol key once."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return BmcE6OptionsFlow(config_entry)
 
     def __init__(self) -> None:
         self.target_name: str | None = None
@@ -132,3 +141,78 @@ class BmcE6ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                         "hint": "Optional Remot cloud backup: all five fields, or leave all empty for BLE only. "
                                                 "Optional push secret turns on the mini-agent webhook."
                                     })
+
+
+class BmcE6OptionsFlow(config_entries.OptionsFlow):
+    """Re-authenticate the cloud channel with an SMS code.
+
+    Manual trigger only: the flow sends one SMS when the user asks for it, then
+    exchanges the code for a token pair this integration owns. Nothing here runs
+    on a schedule, so the vendor is never billed for unattended logins.
+    """
+
+    def __init__(self, entry) -> None:
+        self._entry = entry
+        self._phone: str | None = None
+
+    def _cloud(self) -> dict:
+        return dict(self._entry.data.get(CONF_CLOUD_TOKENS) or {})
+
+    def _phone_schema(self):
+        return vol.Schema({vol.Required(CONF_PHONE): str})
+
+    async def async_step_init(self, user_input=None):
+        cloud = self._cloud()
+        if not cloud.get("base_url") or not cloud.get("terminal_id"):
+            return self.async_abort(reason="cloud_not_configured")
+        errors: dict = {}
+        if user_input is not None:
+            phone = str(user_input.get(CONF_PHONE) or "").strip()
+            if not phone.isdigit() or not 6 <= len(phone) <= 15:
+                errors[CONF_PHONE] = "invalid_phone"
+            else:
+                try:
+                    await send_login_sms(
+                        async_get_clientsession(self.hass), cloud["base_url"], phone, cloud
+                    )
+                except Exception:  # never surface the phone or the raw response
+                    errors["base"] = "sms_failed"
+                else:
+                    self._phone = phone
+                    return await self.async_step_code()
+        return self.async_show_form(
+            step_id="init", data_schema=self._phone_schema(), errors=errors
+        )
+
+    async def async_step_code(self, user_input=None):
+        errors: dict = {}
+        cloud = self._cloud()
+        if user_input is not None:
+            code = str(user_input.get("code") or "").strip()
+            try:
+                data = await login_with_sms_code(
+                    async_get_clientsession(self.hass), cloud["base_url"],
+                    self._phone or "", code, cloud["terminal_id"], cloud,
+                )
+            except Exception:
+                errors["base"] = "code_failed"
+            else:
+                tokens = dict(cloud)
+                tokens.update({
+                    "access_token": data["accessToken"],
+                    "refresh_token": data["refreshToken"],
+                    "expires_in": data.get("expiresIn"),
+                })
+                tokens.setdefault("client_id", "app_ios")
+                tokens.setdefault("terminal", "app_ios")
+                tokens.setdefault("terminal_version", "1.01.02")
+                new_data = dict(self._entry.data)
+                new_data[CONF_CLOUD_TOKENS] = tokens
+                self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+                await self.hass.config_entries.async_reload(self._entry.entry_id)
+                return self.async_create_entry(title="", data={})
+        return self.async_show_form(
+            step_id="code",
+            data_schema=vol.Schema({vol.Required("code"): str}),
+            errors=errors,
+        )

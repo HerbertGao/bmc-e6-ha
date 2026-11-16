@@ -67,5 +67,37 @@
         "name": "云端夜间评分"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "云端重新认证",
+        "description": "会发送一条短信验证码。集成使用自己的会话，与手机 App 互不影响。",
+        "data": {
+          "phone": "手机号"
+        }
+      },
+      "code": {
+        "title": "输入短信验证码",
+        "description": "填写刚收到的验证码。",
+        "data": {
+          "code": "验证码"
+        }
+      }
+    },
+    "error": {
+      "invalid_phone": "只能填数字，长度 6–15 位。",
+      "sms_failed": "云端拒绝发送短信，请稍后再试。",
+      "code_failed": "验证码错误或已过期。"
+    },
+    "abort": {
+      "cloud_not_configured": "请先完成云端备份配置（access token、序列号、base URL）。"
+    }
+  },
+  "issues": {
+    "cloud_auth": {
+      "title": "云端需要重新认证",
+      "description": "云端拒绝了已保存的 token，评分通道已暂停。打开该集成的“配置”运行短信登录即可换到新的 token。"
+    }
   }
 }
