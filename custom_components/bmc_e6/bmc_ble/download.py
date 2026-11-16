@@ -39,6 +39,9 @@ MAX_PLAINTEXT = 1024 * 1024
 # peer-supplied, so without this a bogus header can grow the buffer for the whole
 # session.
 MAX_NOTIFY_BUFFER = 64 * 1024
+# A frame whose notification was partially lost cannot be recovered (AES-CBC),
+# so tolerate a few bad frames post-auth instead of ending the round.
+MAX_BAD_FRAMES = 3
 SLICE_MTU_COUNT = app_mtu_count(None, False)  # 20
 
 # Official BaseNewDataProcessing.startHeartbeat: postDelayed 10s, then every 10s.
@@ -152,7 +155,10 @@ class Session:
         self.acks_sent = []
         self.skipped_acks = []
         self.unknown_cmds = []
-        self.alarms = []  # last AlarmState push (1406), unwrapped
+        self.alarms: dict[int, dict] = {}  # itemId -> AlarmState, across the 1406 frames
+        self.resync_bytes = 0
+        self.resyncs = 0
+        self.bad_frames = 0
         self.stop_now = None
         self.timeline = []
         self.sent_query_ws = False
@@ -188,9 +194,16 @@ class Session:
         self.notify_event.set()
 
     def pop_frames(self) -> list[bytes]:
-        frames, self.notify_blob = pc.split_notify_frames(self.notify_blob)
-        if self.notify_blob and self.notify_blob[0] != af.BLE_HEAD and len(self.notify_blob) >= 4:
-            self.stop_now = "notify stream lost BLE_HEAD framing"
+        before = self.notify_blob
+        frames, self.notify_blob, dropped = pc.split_notify_frames(self.notify_blob)
+        if dropped:
+            # A dropped notification cost us some bytes but not the session.
+            self.resyncs += 1
+            self.resync_bytes += dropped
+            logging.getLogger(__name__).info(
+                "framing resync: dropped %d bytes (head %s) -> resume at %s",
+                dropped, before[:8].hex(), self.notify_blob[:8].hex(),
+            )
         return frames
 
 
@@ -370,8 +383,11 @@ async def _cleanup(client, notified: bool, report: dict, sess: Session, code: in
             "skipped_acks": sess.skipped_acks,
             "received_cmds": sess.received_cmds,
             "unknown_cmds": sess.unknown_cmds,
+            "resyncs": sess.resyncs,
+            "bad_frames": sess.bad_frames,
+            "resync_bytes": sess.resync_bytes,
         }
-        report["alarms"] = sess.alarms
+        report["alarms"] = [sess.alarms[k] for k in sorted(sess.alarms)]
         wipe_key(aes_key_buf)
         sess.aes_key = None
         report["ended"] = ts()
@@ -518,10 +534,14 @@ async def handle_incoming(client, sess: Session, parsed: dict) -> str | None:
 
     # 1406/1412/1416: official pure transfer ACKs verified from distinguish (not setters).
     if cmd == 1406:
-        # 1406 carries AlarmState records, so read them before ACKing.
-        sess.alarms = pc.parse_alarm_states(parsed.get("payload") or b"")
+        # 1406 carries AlarmState records, and the device spreads all slots over
+        # three frames, so accumulate by itemId instead of replacing.
+        for alarm in pc.parse_alarm_states(parsed.get("payload") or b""):
+            sess.alarms[alarm["item_id"]] = alarm
         if sess.alarms:
-            logging.getLogger(__name__).info("AlarmState push: %s", sess.alarms)
+            logging.getLogger(__name__).info(
+                "AlarmState slots so far: %d", len(sess.alarms)
+            )
         p2 = int(parsed.get("param2") or 0) & 0xFFFF
         wire = pc.build_1406_ack(sess.aes_key, p2)
         if not await send_kind(client, sess, "ACK_1406", wire, 1407, b""):
@@ -664,10 +684,16 @@ async def post_auth(client, sess: Session) -> str:
                     "wire": redact_hex(frame.hex()),
                     "error": type(ex).__name__,
                 })
-                return f"post-auth decrypt/parse failed: {type(ex).__name__}"
+                sess.bad_frames += 1
+                if sess.bad_frames > MAX_BAD_FRAMES:
+                    return f"post-auth decrypt/parse failed: {type(ex).__name__}"
+                continue
             if not parsed.get("crc_ok"):
                 sess.report["replies"].append({"kind": "crc_fail", **semantic(parsed)})
-                return "post-auth CRC failed; stopping"
+                sess.bad_frames += 1
+                if sess.bad_frames > MAX_BAD_FRAMES:
+                    return "post-auth CRC failed; stopping"
+                continue
             sem = semantic(parsed)
             sem["kind"] = f"cmd_{parsed['command']}"
             sess.report["replies"].append(sem)

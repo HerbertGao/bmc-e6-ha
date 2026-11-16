@@ -204,12 +204,12 @@ class TestSummaryParseAndCaps(unittest.TestCase):
         k = key24()
         a = pc.build_empty_ack(k, 1030)
         b = pc.build_empty_ack(k, 1090)
-        frames, left = pc.split_notify_frames(a + b + a[:6])
+        frames, left, dropped = pc.split_notify_frames(a + b + a[:6])
         self.assertEqual(len(frames), 2)
         self.assertEqual(frames[0], a)
         self.assertEqual(frames[1], b)
         self.assertEqual(left, a[:6])
-        more, left2 = pc.split_notify_frames(left + a[6:])
+        more, left2, dropped2 = pc.split_notify_frames(left + a[6:])
         self.assertEqual(more, [a])
         self.assertEqual(left2, b"")
 
@@ -462,3 +462,45 @@ class AlarmStateParsingTests(unittest.TestCase):
         from bmc_e6.bmc_ble import protocol_cmds as pcm
         payload = self.record(308, active=True) + b"\x01\x02\x03"
         self.assertEqual(len(pcm.parse_alarm_states(payload)), 1)
+
+
+class FramingResyncTests(unittest.TestCase):
+    """A dropped notification must not cost the rest of the session."""
+
+    @staticmethod
+    def aes_frame(payload_len=32):
+        import struct
+        from bmc_e6.bmc_ble import auth_frames as afn
+        return struct.pack(">BBH", afn.BLE_HEAD, afn.ALG_AES, payload_len) + b"\xab" * payload_len
+
+    def test_garbage_before_a_frame_is_skipped(self):
+        from bmc_e6.bmc_ble import protocol_cmds as pcm
+        garbage = bytes([0x77, 0x01, 0x02, 0x99])
+        frames, left, dropped = pcm.split_notify_frames(garbage + self.aes_frame())
+        self.assertEqual(len(frames), 1)
+        self.assertEqual(dropped, len(garbage))
+        self.assertEqual(left, b"")
+
+    def test_false_header_with_bad_algorithm_is_ignored(self):
+        from bmc_e6.bmc_ble import protocol_cmds as pcm
+        from bmc_e6.bmc_ble import auth_frames as afn
+        # head byte present but algorithm 9 is not a real frame -> keep scanning
+        decoy = bytes([afn.BLE_HEAD, 9, 0x00, 0x10])
+        frames, _left, dropped = pcm.split_notify_frames(decoy + self.aes_frame())
+        self.assertEqual(len(frames), 1)
+        self.assertEqual(dropped, len(decoy))
+
+    def test_aes_length_must_be_block_aligned(self):
+        from bmc_e6.bmc_ble import protocol_cmds as pcm
+        from bmc_e6.bmc_ble import auth_frames as afn
+        bad = bytes([afn.BLE_HEAD, afn.ALG_AES, 0x00, 0x11])  # 17 is not a block
+        frames, _left, dropped = pcm.split_notify_frames(bad + self.aes_frame())
+        self.assertEqual(len(frames), 1)
+        self.assertEqual(dropped, len(bad))
+
+    def test_no_candidate_keeps_only_a_partial_header(self):
+        from bmc_e6.bmc_ble import protocol_cmds as pcm
+        frames, left, dropped = pcm.split_notify_frames(b"\x77" * 10)
+        self.assertEqual(frames, [])
+        self.assertEqual(len(left), 3)
+        self.assertEqual(dropped, 7)

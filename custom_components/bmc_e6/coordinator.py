@@ -88,6 +88,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
         self._records: dict[int, dict] = {}
         self._ble_advanced = False
         self._alarms: list[dict] = []  # last AlarmState snapshot from the device
+        self._alarms_at: float | None = None  # epoch when that snapshot was read
         self.hw_version: str | None = None
         self.sw_version: str | None = None
 
@@ -114,6 +115,9 @@ class BmcE6Coordinator(DataUpdateCoordinator):
                         setattr(self, attr, loaded[attr])
                 if isinstance(loaded.get("alarms"), list):
                     self._alarms = [a for a in loaded["alarms"] if isinstance(a, dict)]
+                epoch_at = loaded.get("alarms_at")
+                if isinstance(epoch_at, (int, float)) and not isinstance(epoch_at, bool):
+                    self._alarms_at = float(epoch_at)
 
     async def _async_update_data(self) -> dict:
         # BLE primary channel (HA bluetooth routes via local/ESPHome adapters).
@@ -148,6 +152,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
             "cloud": cloud_metrics,
             "cloud_error": cloud_error,
             "alarms": self._alarms,
+            "alarms_at": self._alarms_at,
         }
 
     async def _async_ble_channel(self) -> None:
@@ -196,6 +201,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
                 # session ended before the AlarmState pushes arrived, not that the
                 # device has no alarms.
                 self._alarms = [a for a in report["alarms"] if isinstance(a, dict)]
+                self._alarms_at = time.time()
             versions = report.get("device_versions") or {}
             if versions:
                 self.hw_version = versions.get("hw_version") or self.hw_version
@@ -236,6 +242,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
             "hw_version": self.hw_version,
             "sw_version": self.sw_version,
             "alarms": self._alarms,
+            "alarms_at": self._alarms_at,
             "records": [json_safe_record(self._records[no]) for no in keep],
         })
         _LOGGER.info("state persisted: cursor=%s records=%d", self._cursor, len(keep))

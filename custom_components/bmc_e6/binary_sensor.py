@@ -7,6 +7,9 @@ slots stay visible without one entity each.
 """
 from __future__ import annotations
 
+from datetime import datetime
+import time
+
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -63,7 +66,17 @@ class BmcE6WaterShortageSensor(CoordinatorEntity, BinarySensorEntity):
     def extra_state_attributes(self) -> dict:
         water = self._water()
         active = [a for a in self._alarms() if a.get("active")]
+        taken = (self.coordinator.data or {}).get("alarms_at")
         return {
+            # The device only reports alarm slots when a BLE session connects, so
+            # the reading can be up to one refresh interval old.
+            "snapshot_at": (
+                datetime.fromtimestamp(taken).astimezone().isoformat(timespec="seconds")
+                if taken else None
+            ),
+            "snapshot_age_minutes": (
+                round((time.time() - taken) / 60) if taken else None
+            ),
             # The device keeps the window of the last occurrence even when the
             # alarm is currently inactive, which is why it is worth showing.
             "last_water_start": (water or {}).get("start"),

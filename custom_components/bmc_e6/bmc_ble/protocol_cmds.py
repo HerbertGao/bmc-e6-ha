@@ -255,17 +255,58 @@ def is_event_command(cmd: int) -> bool:
     return cmd in EVENTS
 
 
-def split_notify_frames(blob: bytes) -> tuple[list[bytes], bytes]:
+# Upper bound for a declared AES frame length; summary pushes are the largest.
+MAX_FRAME_BYTES = 4096
+RSA_WIRE_BODY = 128  # alg=1 frames carry a fixed-size RSA block
+
+
+def _plausible_frame_at(blob: bytes, i: int) -> bool:
+    """Structural test for a frame header (the CRC lives inside the ciphertext)."""
+    if i + 4 > len(blob):
+        return False
+    if blob[i] != af.BLE_HEAD:
+        return False
+    alg = blob[i + 1]
+    length = int.from_bytes(blob[i + 2:i + 4], "big")
+    if alg == af.ALG_VERIFY:
+        return length == RSA_WIRE_BODY
+    if alg == af.ALG_AES:
+        # AES-CBC ciphertext is always a whole number of blocks.
+        return 0 < length <= MAX_FRAME_BYTES and length % 16 == 0
+    return False
+
+
+def split_notify_frames(blob: bytes) -> tuple[list[bytes], bytes, int]:
+    """Split length-prefixed frames, resyncing past a dropped notification.
+
+    Returns (frames, remainder, dropped_bytes). A lost notification leaves
+    garbage in front of the next frame; aborting the session there costs the rest
+    of the round (including the alarm pushes). Instead, scan forward for a
+    structurally valid header and skip what precedes it. The header test is
+    narrow (head byte + known algorithm + that algorithm's length rule), so a
+    false match inside ciphertext is very unlikely and would still be rejected
+    later by the frame CRC.
+    """
     frames: list[bytes] = []
+    dropped = 0
     while len(blob) >= 4:
-        if blob[0] != af.BLE_HEAD:
-            return frames, blob
+        if not _plausible_frame_at(blob, 0):
+            nxt = next((i for i in range(1, len(blob)) if _plausible_frame_at(blob, i)), None)
+            if nxt is None:
+                # Keep at most a partial header; the rest cannot be a frame start.
+                keep = blob[-3:] if len(blob) > 3 else blob
+                dropped += len(blob) - len(keep)
+                blob = keep
+                break
+            dropped += nxt
+            blob = blob[nxt:]
+            continue
         need = 4 + int.from_bytes(blob[2:4], "big")
         if len(blob) < need:
             break
         frames.append(blob[:need])
         blob = blob[need:]
-    return frames, blob
+    return frames, blob, dropped
 
 
 # --- NewSummaryInfo (field names only used for parse; values stay private) ---
