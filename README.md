@@ -91,7 +91,7 @@ App 的刷新挤掉）。失效后评分实体会变成 `unavailable`，并在�
 - `custom_components/bmc_e6/bmc_ble/` — 共享 BLE 协议实现（认证/帧/摘要解析/增量下载）
 - `mini_agent/` — 备用机抓取 agent（复用同一协议包）
 - `tools/` — 协议密钥提取指引与脚本
-- `docs/` — 协议矩阵、架构说明
+- `docs/` — 协议矩阵、架构说明、告警槽位（[`docs/alarms.md`](docs/alarms.md)）
 - `tests/` — 离线测试（无设备、无真实密钥）
 
 ## 隐私与安全
