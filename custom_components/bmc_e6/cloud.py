@@ -186,8 +186,30 @@ class RemotCloudClient:
         for key in ("access_token", "refresh_token", "expires_in"):
             if tokens.get(key) is not None:
                 self.secrets[key] = tokens[key]
+        self.secrets["token_refreshed_at"] = datetime.now(TZ).isoformat()
+
+    def access_token_stale(self) -> bool:
+        """True when the access token is past 3/4 of its lifetime.
+
+        Refreshing proactively matters because the vendor rotates the refresh
+        token on every use: the chain stays alive only while we keep using the
+        current one, and a dead refresh token comes back as a bare HTTP 500.
+        """
+        issued_raw = self.secrets.get("token_refreshed_at")
+        if not issued_raw:
+            return True
+        try:
+            issued = datetime.fromisoformat(issued_raw)
+        except ValueError:
+            return True
+        lifetime = self.secrets.get("expires_in") or 28800
+        age = (datetime.now(TZ) - issued).total_seconds()
+        return age >= lifetime * 0.75
 
     async def ensure_auth(self) -> None:
+        if self.access_token_stale():
+            await self.refresh()
+            return
         try:
             card = await self._get_json("/api2/home/card/info?type=3")
             if card.get("success"):

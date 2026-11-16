@@ -198,3 +198,34 @@ class AuthFlowTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AccessTokenStalenessTests(unittest.TestCase):
+    """The chain only survives if we keep using the current refresh token."""
+
+    def client(self, refreshed_at=None, expires_in=None):
+        sec = {"access_token": "a", "refresh_token": "r", "serial": "s",
+               "terminal_id": "t", "base_url": "https://example.invalid"}
+        if refreshed_at is not None:
+            sec["token_refreshed_at"] = refreshed_at
+        if expires_in is not None:
+            sec["expires_in"] = expires_in
+        return cloud.RemotCloudClient(session=None, secrets=sec)
+
+    def stamp(self, hours_ago: float) -> str:
+        from datetime import datetime, timedelta
+        return (datetime.now(cloud.TZ) - timedelta(hours=hours_ago)).isoformat()
+
+    def test_missing_timestamp_is_stale(self):
+        self.assertTrue(self.client().access_token_stale())
+
+    def test_unparsable_timestamp_is_stale(self):
+        self.assertTrue(self.client(refreshed_at="not-a-date").access_token_stale())
+
+    def test_fresh_token_is_not_stale(self):
+        self.assertFalse(self.client(refreshed_at=self.stamp(1), expires_in=28800).access_token_stale())
+
+    def test_token_past_three_quarters_is_stale(self):
+        # 8h lifetime -> stale from 6h
+        self.assertFalse(self.client(refreshed_at=self.stamp(5.5), expires_in=28800).access_token_stale())
+        self.assertTrue(self.client(refreshed_at=self.stamp(6.5), expires_in=28800).access_token_stale())
