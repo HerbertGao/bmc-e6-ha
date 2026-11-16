@@ -291,6 +291,58 @@ SUMMARY_FIELD_NAMES = [
 ]
 
 
+# itemId -> stable snake_case name (from AlarmItem in the official app).
+ALARM_ITEM_NAMES = {
+    100: "none",
+    101: "power_failure",
+    102: "device_fault",
+    103: "tube_disconnected",
+    104: "high_pressure",
+    105: "low_respiratory_rate",
+    106: "low_spo2",
+    201: "leak",
+    202: "low_battery_voltage",
+    203: "heated_humidifier_failure",
+    204: "low_pressure",
+    301: "low_tidal_volume",
+    305: "change_mask",
+    306: "clean_device",
+    307: "sd_card_error",
+    308: "check_water",
+    309: "check_spo2_sensor",
+    999: "max",
+}
+ALARM_ITEM_CHECK_WATER = 308
+ALARM_RECORD_BYTES = 18  # uint16 flags + two BMCTime values
+
+
+def parse_alarm_states(payload: bytes) -> list[dict]:
+    """Parse an AlarmState push (wire 1406): 18-byte records.
+
+    Layout per record: uint16 LE flags (bit0 active, bit1 confirm, bits2..15
+    itemId), then the alarm's start and end as BMCTime. The app maps itemId via
+    AlarmItem; 308 is "check water". Unknown ids are kept, not dropped.
+    """
+    out: list[dict] = []
+    for off in range(0, len(payload) - ALARM_RECORD_BYTES + 1, ALARM_RECORD_BYTES):
+        rec = payload[off:off + ALARM_RECORD_BYTES]
+        flags = int.from_bytes(rec[0:2], "little")
+        item_id = (flags >> 2) & 0x3FFF
+        item = {
+            "item_id": item_id,
+            "name": ALARM_ITEM_NAMES.get(item_id, "unknown"),
+            "active": bool(flags & 1),
+            "confirm": bool(flags & 2),
+        }
+        for key, chunk in (("start", rec[2:10]), ("end", rec[10:18])):
+            try:
+                item[key] = parse_bmc_date_raw(chunk).isoformat()
+            except ValueError:  # all-zero / invalid BMCTime means "not set"
+                item[key] = None
+        out.append(item)
+    return out
+
+
 def parse_bmc_date_raw(buf8: bytes) -> datetime:
     """NewSummaryInfo / BMCTime-style: year=byte+1900, hour as raw byte, ms uint16 LE."""
     if len(buf8) < 8:

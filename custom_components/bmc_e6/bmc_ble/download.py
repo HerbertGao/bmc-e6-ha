@@ -13,6 +13,8 @@ Scanning/connect/auth and evidence/health archiving live in client.py/callers.
 """
 from __future__ import annotations
 
+import logging
+
 import asyncio
 import hashlib
 import struct
@@ -150,6 +152,7 @@ class Session:
         self.acks_sent = []
         self.skipped_acks = []
         self.unknown_cmds = []
+        self.alarms = []  # last AlarmState push (1406), unwrapped
         self.stop_now = None
         self.timeline = []
         self.sent_query_ws = False
@@ -368,6 +371,7 @@ async def _cleanup(client, notified: bool, report: dict, sess: Session, code: in
             "received_cmds": sess.received_cmds,
             "unknown_cmds": sess.unknown_cmds,
         }
+        report["alarms"] = sess.alarms
         wipe_key(aes_key_buf)
         sess.aes_key = None
         report["ended"] = ts()
@@ -514,6 +518,10 @@ async def handle_incoming(client, sess: Session, parsed: dict) -> str | None:
 
     # 1406/1412/1416: official pure transfer ACKs verified from distinguish (not setters).
     if cmd == 1406:
+        # 1406 carries AlarmState records, so read them before ACKing.
+        sess.alarms = pc.parse_alarm_states(parsed.get("payload") or b"")
+        if sess.alarms:
+            logging.getLogger(__name__).info("AlarmState push: %s", sess.alarms)
         p2 = int(parsed.get("param2") or 0) & 0xFFFF
         wire = pc.build_1406_ack(sess.aes_key, p2)
         if not await send_kind(client, sess, "ACK_1406", wire, 1407, b""):

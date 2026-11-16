@@ -66,6 +66,11 @@
       "cloud_score": {
         "name": "云端夜间评分"
       }
+    },
+    "binary_sensor": {
+      "water_shortage": {
+        "name": "缺水告警"
+      }
     }
   },
   "options": {

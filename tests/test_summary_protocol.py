@@ -420,3 +420,45 @@ class TestQueryWorkStateVsSetter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AlarmStateParsingTests(unittest.TestCase):
+    """Wire 1406 is an AlarmState list, not a bare ACK."""
+
+    @staticmethod
+    def record(item_id, active=False, confirm=False, start=None, end=None):
+        flags = (item_id << 2) | (2 if confirm else 0) | (1 if active else 0)
+        assert flags <= 0xFFFF, "item_id must fit in 14 bits"
+        import struct
+        out = struct.pack("<H", flags)
+        for ts in (start, end):
+            out += ts if ts else b"\x00" * 8
+        assert len(out) == 18
+        return out
+
+    def test_empty_payload(self):
+        self.assertEqual(__import__("bmc_e6.bmc_ble.protocol_cmds", fromlist=["x"]).parse_alarm_states(b""), [])
+
+    def test_check_water_active_bit_and_item_id(self):
+        from bmc_e6.bmc_ble import protocol_cmds as pcm
+        payload = self.record(308, active=True, confirm=True)
+        got = pcm.parse_alarm_states(payload)
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0]["item_id"], 308)
+        self.assertEqual(got[0]["name"], "check_water")
+        self.assertTrue(got[0]["active"])
+        self.assertTrue(got[0]["confirm"])
+        self.assertIsNone(got[0]["start"])  # zero BMCTime means "not set"
+
+    def test_two_records_and_inactive_flag(self):
+        from bmc_e6.bmc_ble import protocol_cmds as pcm
+        payload = self.record(308, active=False) + self.record(203, active=True)
+        got = pcm.parse_alarm_states(payload)
+        self.assertEqual([g["item_id"] for g in got], [308, 203])
+        self.assertEqual([g["active"] for g in got], [False, True])
+        self.assertEqual(got[1]["name"], "heated_humidifier_failure")
+
+    def test_partial_trailing_bytes_ignored(self):
+        from bmc_e6.bmc_ble import protocol_cmds as pcm
+        payload = self.record(308, active=True) + b"\x01\x02\x03"
+        self.assertEqual(len(pcm.parse_alarm_states(payload)), 1)

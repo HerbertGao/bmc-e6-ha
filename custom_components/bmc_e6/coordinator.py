@@ -87,6 +87,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
         self._last_success_epoch: float | None = None
         self._records: dict[int, dict] = {}
         self._ble_advanced = False
+        self._alarms: list[dict] = []  # last AlarmState snapshot from the device
         self.hw_version: str | None = None
         self.sw_version: str | None = None
 
@@ -111,6 +112,8 @@ class BmcE6Coordinator(DataUpdateCoordinator):
                 for attr in ("hw_version", "sw_version"):
                     if isinstance(loaded.get(attr), str):
                         setattr(self, attr, loaded[attr])
+                if isinstance(loaded.get("alarms"), list):
+                    self._alarms = [a for a in loaded["alarms"] if isinstance(a, dict)]
 
     async def _async_update_data(self) -> dict:
         # BLE primary channel (HA bluetooth routes via local/ESPHome adapters).
@@ -144,6 +147,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
             "last_success": self.last_success,
             "cloud": cloud_metrics,
             "cloud_error": cloud_error,
+            "alarms": self._alarms,
         }
 
     async def _async_ble_channel(self) -> None:
@@ -187,6 +191,11 @@ class BmcE6Coordinator(DataUpdateCoordinator):
                 want_device_info=self.hw_version is None or self.sw_version is None,
             )
             report = result["report"]
+            if report.get("alarms"):
+                # Only replace on a non-empty snapshot: an empty list means the
+                # session ended before the AlarmState pushes arrived, not that the
+                # device has no alarms.
+                self._alarms = [a for a in report["alarms"] if isinstance(a, dict)]
             versions = report.get("device_versions") or {}
             if versions:
                 self.hw_version = versions.get("hw_version") or self.hw_version
@@ -226,6 +235,7 @@ class BmcE6Coordinator(DataUpdateCoordinator):
             "last_success_epoch": self._last_success_epoch,
             "hw_version": self.hw_version,
             "sw_version": self.sw_version,
+            "alarms": self._alarms,
             "records": [json_safe_record(self._records[no]) for no in keep],
         })
         _LOGGER.info("state persisted: cursor=%s records=%d", self._cursor, len(keep))

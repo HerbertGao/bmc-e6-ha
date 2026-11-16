@@ -66,6 +66,11 @@
       "cloud_score": {
         "name": "Cloud nightly score"
       }
+    },
+    "binary_sensor": {
+      "water_shortage": {
+        "name": "Water shortage"
+      }
     }
   },
   "options": {

@@ -11,7 +11,7 @@ from logging.handlers import RotatingFileHandler
 
 from .const import DOMAIN  # const has no HA dependency
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "binary_sensor"]
 
 _WEBHOOK_REGISTERED = f"{DOMAIN}_webhook_registered"
 
