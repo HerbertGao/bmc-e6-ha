@@ -22,7 +22,7 @@ from .const import (
 )
 from .bmc_ble import auth_frames as af
 from .bmc_ble.client import is_supported_advertisement, model_from_name
-from .cloud import login_with_sms_code, send_login_sms
+from .cloud import login_with_sms_code, now_iso, send_login_sms
 
 # The name reaches filesystem paths and store keys, so keep it to what a serial can
 # actually be: a crafted advertisement must not be able to break setup.
@@ -202,6 +202,9 @@ class BmcE6OptionsFlow(config_entries.OptionsFlow):
                     "access_token": data["accessToken"],
                     "refresh_token": data["refreshToken"],
                     "expires_in": data.get("expiresIn"),
+                    # Persist the issuance time: the proactive refresh reads it back
+                    # after a restart, and a stale stamp means a pointless refresh.
+                    "token_refreshed_at": now_iso(),
                 })
                 tokens.setdefault("client_id", "app_ios")
                 tokens.setdefault("terminal", "app_ios")

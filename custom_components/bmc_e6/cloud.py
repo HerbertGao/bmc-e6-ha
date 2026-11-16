@@ -31,6 +31,11 @@ def api_headers(sec: dict, *, auth: bool = True) -> dict:
     return h
 
 
+def now_iso() -> str:
+    """Issuance timestamp used for the proactive-refresh decision."""
+    return datetime.now(TZ).isoformat()
+
+
 def login_headers(sec: dict | None = None) -> dict:
     """Headers for the login endpoints (no Authorization: there is no token yet)."""
     sec = sec or {}
@@ -176,7 +181,7 @@ class RemotCloudClient:
         self.secrets["access_token"] = data["accessToken"]
         if data.get("refreshToken"):
             self.secrets["refresh_token"] = data["refreshToken"]
-        self.secrets["token_refreshed_at"] = datetime.now(TZ).isoformat()
+        self.secrets["token_refreshed_at"] = now_iso()
         self.secrets["expires_in"] = data.get("expiresIn")
         if self._on_tokens_updated is not None:
             await self._on_tokens_updated(self.secrets)
@@ -186,7 +191,7 @@ class RemotCloudClient:
         for key in ("access_token", "refresh_token", "expires_in"):
             if tokens.get(key) is not None:
                 self.secrets[key] = tokens[key]
-        self.secrets["token_refreshed_at"] = datetime.now(TZ).isoformat()
+        self.secrets["token_refreshed_at"] = now_iso()
 
     def access_token_stale(self) -> bool:
         """True when the access token is past 3/4 of its lifetime.
