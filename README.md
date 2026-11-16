@@ -75,6 +75,16 @@ BLE 实体展示**最近一条有治疗数据的记录**。设备会在日期边
 4. 添加集成：蓝牙发现选择你的呼吸机（或手动输入 `BMC_<SN>`），粘贴 PEM。
    可选：配置云备份凭据（access/refresh token）。
 
+## 云备份重新认证
+
+云端 token 会失效（access token 8 小时，refresh token 数天，且与手机 App 共用时会被
+App 的刷新挤掉）。失效后评分实体会变成 `unavailable`，并在「修复」里出现一条提示。
+
+重新认证：**设置 → 设备与服务 → BMC E5/E6 Ventilator → 配置**，填手机号，收到短信后填验证码。
+集成会自己登录并保存一对新 token，**与手机 App 各自独立**，不会再互相作废。
+
+这一步只会发一条短信，必须手动触发——集成不会定时重登或自动重试。
+
 ## 目录
 
 - `custom_components/bmc_e6/` — HACS 集成（config flow、coordinator、sensor、webhook）
