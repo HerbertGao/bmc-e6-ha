@@ -238,6 +238,27 @@ class BmcE6Coordinator(DataUpdateCoordinator):
         if age > 5:
             _LOGGER.warning("state store write did not land (file is %.0fs old)", age)
 
+    async def async_apply_cloud_tokens(self, tokens: dict) -> None:
+        """Use freshly issued cloud tokens without reloading the whole entry.
+
+        Reloading re-runs the first refresh, which includes a full BLE round
+        (up to 60s plus the proxy retry). That is what made re-authentication
+        feel slow, and none of it is needed to pick up a new token pair.
+        """
+        if self._cloud is None:
+            return
+        self._cloud.update_tokens(tokens)
+        try:
+            metrics = await self._cloud.pick_report()
+        except Exception as ex:  # keep the tokens; the next round retries
+            _LOGGER.warning("cloud fetch after re-auth failed: %s: %s", type(ex).__name__, ex)
+            return
+        data = dict(self.data or {})
+        data["cloud"] = metrics
+        data["cloud_error"] = None
+        self.async_set_updated_data(data)
+        _cloud_issue(self.hass, self.target_name, create=False)
+
     def health_status(self) -> dict:
         age = None
         if self._last_success_epoch is not None:

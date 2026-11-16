@@ -181,6 +181,12 @@ class RemotCloudClient:
         if self._on_tokens_updated is not None:
             await self._on_tokens_updated(self.secrets)
 
+    def update_tokens(self, tokens: dict) -> None:
+        """Swap in tokens obtained by the options flow without rebuilding the client."""
+        for key in ("access_token", "refresh_token", "expires_in"):
+            if tokens.get(key) is not None:
+                self.secrets[key] = tokens[key]
+
     async def ensure_auth(self) -> None:
         try:
             card = await self._get_json("/api2/home/card/info?type=3")

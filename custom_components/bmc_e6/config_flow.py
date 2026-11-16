@@ -209,7 +209,11 @@ class BmcE6OptionsFlow(config_entries.OptionsFlow):
                 new_data = dict(self._entry.data)
                 new_data[CONF_CLOUD_TOKENS] = tokens
                 self.hass.config_entries.async_update_entry(self._entry, data=new_data)
-                await self.hass.config_entries.async_reload(self._entry.entry_id)
+                # Apply in place: a reload would re-run a full BLE round (~1 min)
+                # just to pick up a token pair.
+                coordinator = (self.hass.data.get(DOMAIN) or {}).get(self._entry.entry_id)
+                if coordinator is not None:
+                    await coordinator.async_apply_cloud_tokens(tokens)
                 return self.async_create_entry(title="", data={})
         return self.async_show_form(
             step_id="code",
