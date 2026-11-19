@@ -61,6 +61,31 @@ E6 已实机验证（B25A Plus）；E5 协议同源，未在任何 E5 机器上�
 | `sensor.bmc_spo2_time_min` | 血氧记录时长 | min |
 | `sensor.bmc_cloud_score` | 云端夜间评分（属性带报告标题与摘要） | — |
 
+### 属性
+
+每日汇总记录的信息远多于每个指标一个数字。其余字段作为**属性**挂在对应实体上，属性名就是
+协议字段名，只做单位换算（对照实测记录验证）：
+
+| 实体 | 附加属性 |
+| --- | --- |
+| `bmc_ahi` | `ai` `hi` `oai` `cai` `uai` `ohi` `chi` `uhi` `hiWithCh` `ahiWithCh` `odi` `sni` `reraIndex`（次/小时） |
+| `bmc_epap_avg` | `initP` `epapMax` `epap95` `epap50`（cmH2O） |
+| `bmc_ipap_avg` | `ipapMax` `ipap95` `ipap50`（cmH2O） |
+| `bmc_vt_avg` | `vtMax` `vt95` `vt50`（mL） |
+| `bmc_mv_avg` | `mvMax` `mv95` `mv50`（L/min） |
+| `bmc_leak_avg` | `leakMax` `leak95` `leak50`（L/min） |
+| `bmc_rr_avg` | `rrMax` `rr95` `rr50`（次/分） |
+| `bmc_spo2_avg` | `spo295` `spo250` `spo2Time95to100`…`spo2Time0to69`（分钟）`tst90` `odi` |
+| `bmc_pr_avg` | `prMax` `prMin` `pr95` `pr50` |
+| `bmc_treat_time_h` | `runTime` `leakTime` `leakTime40L` `sleepStageWakeTime` `sleepStageLightTime` `sleepStageDeepTime` `sleepStageWakeCnt` `inspTimeMax/Avg/95/50` `ieMax/Avg/95/50` `hypoBurden` `mildFlowLimitTime` `moderateLimitTime` `severeLimitTime` `snoreTime` `periodicTime` |
+
+睡眠分期属性单位是分钟（设备按 2 秒为单位存储，三者之和等于治疗时长）。`ie*` 是吸呼比
+（0.448 即 1:2.2）。`mildFlowLimitTime` 等时段类字段保持**设备原始数值**，秒/分钟未被证实。
+
+未被暴露的解析字段只有记录头/版本/保留区/校验和，以及 `firstMode`/`lastMode`（无公开枚举）
+和 `sInspRatio`/`sExpRatio`（标度未证实）。`tests/test_attributes.py` 会解析一条样本记录并与
+暴露清单比对，**解析器新增字段而未分类时测试失败**，避免再次出现血氧那种漏接。
+
 血氧只在夜间佩戴血氧探头的时段有值，`sensor.bmc_spo2_time_min` 说明这些平均值覆盖了多久
 （例如治疗 6.7 小时、血氧记录 79 分钟，则 SpO2 反映的是这 79 分钟）。设备未接血氧探头时
 SpO2 记录时长为 0，平均/最低/最高血氧均为 0。

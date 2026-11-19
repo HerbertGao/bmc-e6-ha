@@ -6,6 +6,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .attributes import extra_attrs
 from .coordinator import BmcE6Coordinator
 # key, summary field, unit transformer, icon, native unit, device class
 _SENSORS = (
@@ -151,4 +152,5 @@ class BmcE6MetricSensor(CoordinatorEntity, SensorEntity):
             "treat_count": rec.get("treatCnt"),
             "newest_record_no": newest.get("recordNo"),
             "newest_record_date": str(newest_date)[:10] if newest_date else None,
+            **extra_attrs(self._key, rec),
         }
