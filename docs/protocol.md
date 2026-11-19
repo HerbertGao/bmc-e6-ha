@@ -62,6 +62,97 @@ AHI/ODI 族 ÷10；漏气 ÷10 L/min；压力 ÷100 cmH₂O；分钟通气量 ÷
 时间（runTime/treatTime）秒；潮气量 mL；呼吸频率 次/分。
 日期字段按 BMCTime/NewSummaryInfo（year=byte+1900、小时原值、ms uint16 LE）。
 
+## 每日汇总字段对照（NewSummaryInfo）
+
+一帧摘要的载荷按固定顺序排列，全部整数为**小端**；字符串为定长 UTF-8，尾部 NUL 填充。
+「依据」列说明换算的确认方式：*App* = 与官方 App 界面数值逐条比对；
+*一致性* = 字段之间的比例关系自洽（例如分项之和等于总时长）；*未证实* = 只在实机出现过，
+单位尚不能确定，集成按原始值透出，不做换算。
+
+### 头部与时间
+
+| 字段 | 类型 | 单位/换算 | 依据 |
+| --- | --- | --- | --- |
+| `headFlag` `size` | u16 | 帧标识与声明长度，非数据 | — |
+| `mainVer` `subVer` | u8 | 记录格式版本 | — |
+| `headRev` | 2B | 版本字符串 | — |
+| `recordDate` | 8B | year=byte+1900、month、day、hour、minute、second、ms uint16 LE | App |
+| `recordNo` | u32 | 记录序号，无单位 | App |
+| `runTime` | u32 | 秒，设备本次通电运行时长 | App |
+| `treatTime` | u32 | 秒，治疗时长（24191 = 6.72 h） | App |
+| `leakTime` | u32 | 秒，漏气相关累计时长 | 未证实 |
+| `spo2Time` | u32 | 秒，血氧有效记录时长（4753 = 79.2 min） | 一致性 |
+| `treatCnt` | u16 | 次，治疗次数 | App |
+| `firstMode` `lastMode` | u8 | 模式代码，无公开枚举 | 未证实 |
+| `buildTime` | u32 | 记录生成时间戳 | 未证实 |
+
+### 压力（÷100 → cmH₂O）
+
+| 字段 | 类型 | 实测样例 | 说明 |
+| --- | --- | --- | --- |
+| `initP` | u16 | 300 → 3.00 | 起始压力 |
+| `epapMax` `epapAvg` `epap95` `epap50` | u16 | 956 / 691 / 900 / 700 | 呼气相最大/均值/95/50 分位 |
+| `ipapMax` `ipapAvg` `ipap95` `ipap50` | u16 | 1406 / 1068 / 1300 / 1100 | 吸气相同四项 |
+
+### 事件指数（÷10 → 次/小时）
+
+| 字段 | 类型 | 实测样例 | 说明 |
+| --- | --- | --- | --- |
+| `ahi` `ai` `hi` | u16 | 20 / 15 / 5 | 总指数、呼吸暂停、低通气 |
+| `oai` `cai` `uai` | u16 | 13 / 1 / 1 | 阻塞性、中枢性、未分类 |
+| `ohi` `chi` `uhi` | u16 | 4 / 3 / 1 | 对应低通气三类 |
+| `ahiWithCh` `hiWithCh` | u16 | 23 / 8 | 含 Cheyne-Stokes 的合并值 |
+| `odi` | u16 | 0 | 氧减指数 |
+| `sni` | u16 | 214 → 21.4 | 鼾声指数，按同族 ÷10 处理，未单独与 App 比对 |
+| `reraIndex` | u16 | 0 | 微觉醒相关事件指数 |
+
+### 容量、通气与漏气
+
+| 字段 | 类型 | 单位/换算 | 实测样例 |
+| --- | --- | --- | --- |
+| `vtMax` `vtAvg` `vt95` `vt50` | u16 | mL，原值 | 1303 / 401 / 700 / 382 |
+| `mvMax` `mvAvg` `mv95` `mv50` | u32 | ÷1000 → L/min | 20560 / 6595 / 10625 / 6429 |
+| `leakMax` `leakAvg` `leak95` `leak50` | u16 | ÷10 → L/min | 167 / 71 / 140 / 60 |
+| `inspTimeMax` `inspTimeAvg` `inspTime95` `inspTime50` | u16 | ÷10 → 秒 | 16 / 11 / 13 / 11 |
+
+### 血氧与脉率
+
+| 字段 | 类型 | 单位/换算 | 实测样例 |
+| --- | --- | --- | --- |
+| `spo2Max` `spo2Min` `spo2Avg` `spo295` `spo250` | u8 | %，原值 | 98 / 91 / 94 / 98 / 97 |
+| `spo2Time95to100` … `spo2Time0to69` | u16 | **分钟**，7 个区间桶 | 50 / 28 / 0 / 0 / 0 / 0 / 0 |
+| `prMax` `prMin` `prAvg` `pr95` `pr50` | u8 | 次/分，原值 | 90 / 64 / 77 / 89 / 77 |
+| `rrMax` `rrAvg` `rr95` `rr50` | u8 | 次/分，原值 | 22 / 16 / 20 / 17 |
+| `tst90` | u16 | 血氧低于 90% 的时长 | 未证实 |
+
+血氧区间桶为**分钟**：同一条记录 7 个桶之和为 78，`spo2Time` 为 4753 秒 = 79.2 分钟，
+两者在设备自身取整范围内一致。这条是"血氧只覆盖部分夜晚"的直接证据。
+
+### 比例与睡眠分期
+
+| 字段 | 类型 | 单位/换算 | 实测样例 |
+| --- | --- | --- | --- |
+| `sInspRatio` `sExpRatio` | u16 | 标度未证实 | 1000 / 1000 |
+| `ieMax` `ieAvg` `ie95` `ie50` | u16 | ÷1000 → 吸呼比（0.448 即 1:2.2） | 647 / 448 / 623 / 482 |
+| `sleepStageWakeTime` `sleepStageLightTime` `sleepStageDeepTime` | u16 | **×2 秒** | 948 / 7874 / 3272 |
+| `sleepStageWakeCnt` | u16 | 次，觉醒次数 | 11 |
+| `mouthLeakTime` `periodicTime` `mildFlowLimitTime` `moderateLimitTime` `severeLimitTime` `snoreTime` | u16 | 时长，秒/分钟未证实 | 90 / 0 / 60 / 1 / 1 / 1 |
+| `hypoBurden` | u16 | 低氧负荷，标度未证实 | 3 |
+
+睡眠分期为 **2 秒/单位**：同一条记录 948+7874+3272=12094 单位 ×2 = 24188 秒，
+与 `treatTime` 24191 秒只差 3 秒（设备自身取整），因此判定成立。
+
+### 尾部与保留区
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `reserveP` 18B、`reserveIndex` 16B、`reserve` 20B | 定长字符串 | 厂商保留，内容不参与计算 |
+| `checksum` | u16 LE | 载荷校验，集成按此拒绝截断帧 |
+
+上述"未证实"字段不影响任何已暴露的实体取值；集成对它们要么原值透出，要么完全不暴露
+（清单见 `attributes.py` 的 `NOT_ATTRIBUTES`），并由 `tests/test_attributes.py` 保证
+解析器新增字段必须被显式分类。
+
 ## 安全边界（重要）
 
 厂商的“加密”是**用 App 公钥做 RSA 私钥加密**来下发会话密钥。公钥在每个 APK 里都有，

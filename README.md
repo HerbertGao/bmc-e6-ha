@@ -82,6 +82,9 @@ E6 已实机验证（B25A Plus）；E5 协议同源，未在任何 E5 机器上�
 睡眠分期属性单位是分钟（设备按 2 秒为单位存储，三者之和等于治疗时长）。`ie*` 是吸呼比
 （0.448 即 1:2.2）。`mildFlowLimitTime` 等时段类字段保持**设备原始数值**，秒/分钟未被证实。
 
+每个字段的类型、单位、换算方式与确认依据（App 核对 / 内部一致性 / 未证实）见
+[`docs/protocol.md` 的字段对照表](docs/protocol.md#每日汇总字段对照newsummaryinfo)。
+
 未被暴露的解析字段只有记录头/版本/保留区/校验和，以及 `firstMode`/`lastMode`（无公开枚举）
 和 `sInspRatio`/`sExpRatio`（标度未证实）。`tests/test_attributes.py` 会解析一条样本记录并与
 暴露清单比对，**解析器新增字段而未分类时测试失败**，避免再次出现血氧那种漏接。
