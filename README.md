@@ -54,7 +54,16 @@ E6 已实机验证（B25A Plus）；E5 协议同源，未在任何 E5 机器上�
 | `sensor.bmc_vt_avg` | 平均潮气量 | mL |
 | `sensor.bmc_mv_avg` | 平均分钟通气量 | L/min |
 | `sensor.bmc_rr_avg` | 平均呼吸频率 | breaths/min |
+| `sensor.bmc_spo2_avg` | 平均血氧饱和度 SpO2 | % |
+| `sensor.bmc_spo2_min` | 最低血氧饱和度 SpO2 | % |
+| `sensor.bmc_spo2_max` | 最高血氧饱和度 SpO2 | % |
+| `sensor.bmc_pr_avg` | 平均脉率 | bpm |
+| `sensor.bmc_spo2_time_min` | 血氧记录时长 | min |
 | `sensor.bmc_cloud_score` | 云端夜间评分（属性带报告标题与摘要） | — |
+
+血氧只在夜间佩戴血氧探头的时段有值，`sensor.bmc_spo2_time_min` 说明这些平均值覆盖了多久
+（例如治疗 6.7 小时、血氧记录 79 分钟，则 SpO2 反映的是这 79 分钟）。设备未接血氧探头时
+SpO2 记录时长为 0，平均/最低/最高血氧均为 0。
 
 BLE 实体展示**最近一条有治疗数据的记录**。设备会在日期边界提前建立下一天的记录且内容为空
 （`recordDate` 固定带 `T12:00:00`，是编码产物而非真实时间）；若直接取最新记录，所有指标会显示 0，

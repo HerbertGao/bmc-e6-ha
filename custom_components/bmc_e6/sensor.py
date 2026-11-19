@@ -18,6 +18,14 @@ _SENSORS = (
     ("vt_avg", "vtAvg", lambda v: v, "mdi:lungs", "mL", None),
     ("mv_avg", "mvAvg", lambda v: round(v / 1000, 2), "mdi:fan", "L/min", None),
     ("rr_avg", "rrAvg", lambda v: v, "mdi:respiratory", "breaths/min", None),
+    # Oximetry only covers the part of the night a finger/probe oximeter was worn,
+    # so spo2_time_min says how much of the therapy the averages describe.
+    ("spo2_avg", "spo2Avg", lambda v: v, "mdi:water-percent", "%", None),
+    ("spo2_min", "spo2Min", lambda v: v, "mdi:water-percent", "%", None),
+    ("spo2_max", "spo2Max", lambda v: v, "mdi:water-percent", "%", None),
+    ("pr_avg", "prAvg", lambda v: v, "mdi:heart-pulse", "bpm", None),
+    ("spo2_time_min", "spo2Time", lambda v: round(v / 60), "mdi:timer-sand", "min",
+     SensorDeviceClass.DURATION),
 )
 
 

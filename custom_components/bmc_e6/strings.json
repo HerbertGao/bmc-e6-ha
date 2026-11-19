@@ -65,6 +65,21 @@
       },
       "cloud_score": {
         "name": "Cloud nightly score"
+      },
+      "spo2_avg": {
+        "name": "Average blood oxygen (SpO2)"
+      },
+      "spo2_min": {
+        "name": "Lowest blood oxygen (SpO2)"
+      },
+      "spo2_max": {
+        "name": "Highest blood oxygen (SpO2)"
+      },
+      "pr_avg": {
+        "name": "Average pulse rate"
+      },
+      "spo2_time_min": {
+        "name": "Blood oxygen recording time"
       }
     },
     "binary_sensor": {

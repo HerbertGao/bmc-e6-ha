@@ -65,6 +65,21 @@
       },
       "cloud_score": {
         "name": "云端夜间评分"
+      },
+      "spo2_avg": {
+        "name": "平均血氧饱和度 SpO2"
+      },
+      "spo2_min": {
+        "name": "最低血氧饱和度 SpO2"
+      },
+      "spo2_max": {
+        "name": "最高血氧饱和度 SpO2"
+      },
+      "pr_avg": {
+        "name": "平均脉率"
+      },
+      "spo2_time_min": {
+        "name": "血氧记录时长"
       }
     },
     "binary_sensor": {
